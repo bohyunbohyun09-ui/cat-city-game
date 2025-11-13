@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>도시를 돌아다니는 고양이 — 클릭형 미니게임</title>
+<style>
+  :root{
+    --bg:#f0efe9; --panel:#ffffff; --accent:#e07a5f; --muted:#6b6b6b;
+  }
+  body { margin:0; font-family:Inter, "Noto Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", Roboto, "Helvetica Neue", Arial; background: linear-gradient(180deg,var(--bg),#e6eff6); color:#222; }
+  header{padding:18px; text-align:center; background:transparent;}
+  h1{margin:6px 0 0; font-size:20px}
+  .container{max-width:980px;margin:18px auto;padding:18px;}
+  .panel{background:var(--panel); border-radius:12px; box-shadow: 0 6px 18px rgba(0,0,0,0.08); padding:16px; margin-bottom:14px;}
+  .row{display:flex; gap:12px; flex-wrap:wrap;}
+  button {cursor:pointer; border:0; background:var(--accent); color:white; padding:10px 14px; border-radius:8px; font-weight:600;}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid #ddd;}
+  .stats{display:flex; gap:10px; font-size:14px; align-items:center;}
+  .stat{background:#fafafa;padding:8px 10px;border-radius:10px;border:1px solid #eee;}
+  .map{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:12px;}
+  .loc{background:#fff;padding:14px;border-radius:10px;text-align:center;box-shadow:0 3px 8px rgba(0,0,0,0.05); cursor:pointer; transition:transform .12s;}
+  .loc:hover{transform:translateY(-6px)}
+  .log{height:120px; overflow:auto; background:#fafafa;border-radius:8px;padding:10px;border:1px solid #eee; font-size:13px;}
+  .center{display:flex;justify-content:center;align-items:center;}
+  .style-tiny{display:flex;gap:8px;align-items:center;justify-content:center}
+  .mini{font-size:12px;padding:6px 8px}
+  .big{font-size:16px;padding:10px 14px}
+  footer{font-size:12px;text-align:center;color:var(--muted);padding:12px}
+  /* styles: 3 themes */
+  .theme-1 { --bg: #fff6f3; --panel:#fff; --accent:#ff8fab; --muted:#7a5a5a; }
+  .theme-2 { --bg: linear-gradient(180deg,#eef9ff,#f6fbff); --panel:#ffffff; --accent:#59a6ff; --muted:#54707f; }
+  .theme-3 { --bg: linear-gradient(180deg,#111217,#1a1f27); --panel:#0f1720; --accent:#9b59ff; --muted:#a3a3a3; color:#eee }
+  .theme-3 .loc{background:#0c1116;color:#ddd}
+  .theme-3 .log{background:#071018;color:#9fd}
+  .hidden{display:none}
+  .location-title{font-weight:700;margin-bottom:8px}
+  .inventory{display:flex;gap:8px;flex-wrap:wrap}
+  .item {background:#f2f2f2;padding:6px 8px;border-radius:8px;font-size:13px}
+  .muted {color:var(--muted); font-size:13px}
+  .large-map .loc{height:110px;display:flex;flex-direction:column;justify-content:center}
+</style>
+</head>
+<body>
+<header class="panel center">
+  <div style="width:100%;max-width:980px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+      <div>
+        <h1>🐾 도시를 돌아다니는 고양이 — 클릭형 미니게임</h1>
+        <div class="muted">고양이를 골라 도시의 장소를 클릭하고, 일을 정하고, 재밌는 결과를 보세요!</div>
+      </div>
+      <div style="text-align:right">
+        <div class="stats">
+          <div class="stat">에너지: <span id="energy">80</span></div>
+          <div class="stat">돈: <span id="money">20</span> ₩</div>
+          <div class="stat">기분: <span id="mood">😊</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section id="setup" class="panel">
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;">
+      <div style="flex:1;min-width:260px">
+        <div class="location-title">캐릭터 설정</div>
+        <label>이름: <input id="catName" value="모찌" /></label>
+        <div style="margin-top:8px" class="style-tiny">
+          <div>스타일 선택:</div>
+          <label><input type="radio" name="style" value="1" checked /> 귀엽고 코믹</label>
+          <label><input type="radio" name="style" value="2" /> 현실적/감성</label>
+          <label><input type="radio" name="style" value="3" /> 어둡고 미스터리</label>
+        </div>
+        <div style="margin-top:10px">
+          <button id="startBtn" class="big">▶ 게임 시작</button>
+          <button id="resetBtn" class="btn-ghost mini">초기화</button>
+        </div>
+      </div>
+      <div style="flex:1;min-width:260px">
+        <div class="location-title">간단 설명</div>
+        <div class="muted">
+          도시의 장소를 클릭해 이동 → 각 장소에서 일을 하거나 작은 이벤트를 겪습니다. 에너지/돈/기분을 관리하세요.
+          게임은 로컬에 저장됩니다. (새로고침 후에도 이어하기 가능)
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="game" class="panel hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <strong id="playerLabel">모찌</strong> — 오늘의 선택
+      </div>
+      <div>
+        <button id="saveBtn" class="mini btn-ghost">저장</button>
+        <button id="loadBtn" class="mini btn-ghost">불러오기</button>
+        <button id="newDayBtn" class="mini btn-ghost">새로운 날</button>
+      </div>
+    </div>
+
+    <div style="margin-top:10px" class="row">
+      <div style="flex:1">
+        <div class="location-title">도시 지도 — 클릭해서 장소로 가요</div>
+        <div class="map large-map" id="map">
+          <div class="loc" data-id="fish">🐟 생선가게 골목<br><small class="muted">맛있는 냄새가 풍기는 곳</small></div>
+          <div class="loc" data-id="park">🌳 공원<br><small class="muted">휴식과 이벤트의 장소</small></div>
+          <div class="loc" data-id="office">🏢 회사 건물 뒤편<br><small class="muted">일자리 제안 가능</small></div>
+          <div class="loc" data-id="cafe">☕ 카페 앞 거리<br><small class="muted">사람들이 많아요</small></div>
+          <div class="loc" data-id="rooftop">🌆 옥상<br><small class="muted">숨겨진 이벤트</small></div>
+          <div class="loc" data-id="alley">🪧 뒷골목 벼룩시장<br><small class="muted">아이템 획득처</small></div>
+        </div>
+      </div>
+
+      <div style="width:360px">
+        <div class="location-title">상세</div>
+        <div id="locationPanel" class="panel" style="padding:12px;background:linear-gradient(0deg,#fff,#fff);">
+          <div id="locName">도시 중심</div>
+          <div id="locDesc" class="muted">원하는 장소를 클릭하세요.</div>
+          <div style="margin-top:10px" id="locActions"></div>
+          <div style="margin-top:10px">
+            <div class="location-title">인벤토리</div>
+            <div class="inventory" id="inventory"></div>
+          </div>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="location-title">로그</div>
+          <div class="log" id="log"></div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <section class="panel hidden" id="minigamePanel">
+    <div class="location-title">미니 게임</div>
+    <div id="miniContent"></div>
+    <div style="margin-top:10px"><button id="closeMini" class="btn-ghost">닫기</button></div>
+  </section>
+
+</main>
+
+<footer>제작: AI 고양이 게임 데모 — 저장/수정 자유롭게 하세요</footer>
+
+<script>
+(function(){
+  // 상태
+  const state = {
+    name: '모찌',
+    energy: 80,
+    money: 20,
+    mood: 80, // 0-100
+    inventory: [],
+    day: 1,
+    theme: 1
+  };
+
+  // 요소
+  const startBtn = document.getElementById('startBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const setup = document.getElementById('setup');
+  const game = document.getElementById('game');
+  const playerLabel = document.getElementById('playerLabel');
+  const energyEl = document.getElementById('energy');
+  const moneyEl = document.getElementById('money');
+  const moodEl = document.getElementById('mood');
+  const map = document.getElementById('map');
+  const locName = document.getElementById('locName');
+  const locDesc = document.getElementById('locDesc');
+  const locActions = document.getElementById('locActions');
+  const logEl = document.getElementById('log');
+  const inventoryEl = document.getElementById('inventory');
+  const catNameInput = document.getElementById('catName');
+  const saveBtn = document.getElementById('saveBtn');
+  const loadBtn = document.getElementById('loadBtn');
+  const newDayBtn = document.getElementById('newDayBtn');
+  const minigamePanel = document.getElementById('minigamePanel');
+  const miniContent = document.getElementById('miniContent');
+  const closeMini = document.getElementById('closeMini');
+
+  // helpers
+  function log(text){ const p=document.createElement('div'); p.innerHTML=text; logEl.prepend(p); }
+  function clamp(n,a,b){return Math.max(a,Math.min(b,n));}
+  function updateUI(){
+    document.documentElement.classList.remove('theme-1','theme-2','theme-3');
+    document.documentElement.classList.add('theme-'+state.theme);
+    playerLabel.textContent = state.name;
+    energyEl.textContent = Math.round(state.energy);
+    moneyEl.textContent = Math.round(state.money);
+    moodEl.textContent = moodEmoji(state.mood);
+    inventoryEl.innerHTML = '';
+    state.inventory.forEach(it=>{
+      const d=document.createElement('div'); d.className='item'; d.textContent=it; inventoryEl.appendChild(d);
+    });
+    // save quick autosave
+    localStorage.setItem('cat_game_autosave', JSON.stringify(state));
+  }
+  function moodEmoji(m){
+    if(m>70) return '😸';
+    if(m>40) return '😺';
+    if(m>20) return '😿';
+    return '😾';
+  }
+  function changeStat({energy=0,money=0,mood=0,addItem=null,removeItem=null}){
+    state.energy = clamp(state.energy + energy, 0, 100);
+    state.money  = Math.max(0, Math.round(state.money + money));
+    state.mood   = clamp(state.mood + mood, 0, 100);
+    if(addItem) state.inventory.push(addItem);
+    if(removeItem){
+      const i = state.inventory.indexOf(removeItem);
+      if(i>=0) state.inventory.splice(i,1);
+    }
+    updateUI();
+  }
+
+  // initial
+  updateUI();
+  // load autosave if exists
+  const autosave = localStorage.getItem('cat_game_autosave');
+  if(autosave){
+    try{
+      const s=JSON.parse(autosave);
+      if(s && confirm('저장된 게임이 있습니다. 불러올까요?')) {
+        Object.assign(state, s);
+        document.getElementsByName('style')[(''+state.theme-1)].checked = true;
+        catNameInput.value = state.name;
+        updateUI();
+        log('📦 저장된 게임을 불러왔습니다. 계속하세요.');
+      }
+    }catch(e){}
+  }
+
+  // Start
+  startBtn.addEventListener('click', ()=>{
+    state.name = (catNameInput.value || '모찌');
+    const style = document.querySelector('input[name="style"]:checked').value;
+    state.theme = parseInt(style);
+    setup.classList.add('hidden');
+    game.classList.remove('hidden');
+    updateUI();
+    log(`🏁 ${state.name}의 하루가 시작되었습니다. (Day ${state.day})`);
+  });
+
+  resetBtn.addEventListener('click', ()=>{
+    if(!confirm('게임을 초기화할까요? 모든 진행이 사라집니다.')) return;
+    localStorage.removeItem('cat_game_autosave');
+    location.reload();
+  });
+
+  // Map clicks
+  map.addEventListener('click', (e)=>{
+    const loc = e.target.closest('.loc');
+    if(!loc) return;
+    const id = loc.dataset.id;
+    openLocation(id);
+  });
+
+  // Open location logic
+  function openLocation(id){
+    switch(id){
+      case 'fish': showLocation('생선가게 골목', '신선한 생선 냄새가 가득합니다. 상인에게 관심을 보이면 일이 생길지도.', [
+        {txt:'구걸해서 한 조각 얻기 (노력: 낮음)', fn:()=>{ if(Math.random()<0.7){changeStat({money:0,mood:5,addItem:'생선 조각'}); log('🐟 생선 조각을 얻었다! 기분 UP');} else {changeStat({mood:-5}); log('👎 아무도 주지 않았다...');}} },
+        {txt:'상인 도와주고 용돈 받기 (노력: 보통)', fn:()=>{ if(Math.random()<0.65){changeStat({energy:-10,money:15,mood:8}); log('💰 상인 일이 잘 되어 돈을 벌었다!')} else {changeStat({energy:-8,mood:-5}); log('⛈ 일이 꼬여서 돈은 못받음')} } },
+        {txt:'도둑질 시도 (위험)', fn:()=>{ if(Math.random()<0.25){changeStat({money:40,mood:15}); log('🏃‍♂️ 훔치기에 성공했다! 하지만 찜찜하다...')} else {changeStat({mood:-20,energy:-15}); log('🚨 도둑질이 발각되어 도망쳤다. 기분 최악') } } }
+      ]); break;
+
+      case 'park': showLocation('공원', '아이들과 산책하는 사람들이 많아요. 놀이와 이벤트가 자주 벌어집니다.', [
+        {txt:'나무 위에서 쉬기 (회복)', fn:()=>{changeStat({energy:20,mood:10}); log('🌿 나무 위에서 푹 쉬었다. 에너지 +')}},
+        {txt:'버스킹 (공연) — 작은 미니게임', fn:()=>{ startPerformanceMini(); }},
+        {txt:'행운의 동전 줍기', fn:()=>{ if(Math.random()<0.5){changeStat({money:10,mood:5}); log('🪙 동전 발견! 돈이 생겼다.')} else {changeStat({mood:1}); log('🍂 아무것도 없음 — 그래도 상쾌') } } }
+      ]); break;
+
+      case 'office': showLocation('회사 건물 뒤편', '사람들이 출퇴근하는 곳. 누군가 아르바이트를 제안할지도 몰라요.', [
+        {txt:'건물 경비에게 일을 물어보기', fn:()=>{ if(Math.random()<0.6){changeStat({money:20,energy:-12,mood:5}); log('🧾 단기 아르바이트를 받았다! 돈 획득');} else {changeStat({mood:-3}); log('👔 제안은 없었다')} } },
+        {txt:'책상 위 간식 훔치기', fn:()=>{ if(state.inventory.includes('생선 조각')){changeStat({mood:10}); log('🍣 가져온 생선으로 동료와 나눠 먹었다 — 기분 좋아짐')} else if(Math.random()<0.2){changeStat({money:30,mood:10}); log('🎁 우연히 큰 팁을 발견했다!')} else {changeStat({mood:-8}); log('😾 간식이 없었다')} } },
+        {txt:'사장에게 매력 어필 (네고)', fn:()=>{ if(Math.random() < state.mood/120){changeStat({money:50,mood:20,energy:-15}); log('🏆 대박 — 특별 보너스를 받았다!')} else {changeStat({mood:-10}); log('😕 어필에 실패했다')} } }
+      ]); break;
+
+      case 'cafe': showLocation('카페 앞 거리', '사람들이 쉬는 곳. 냄새 좋은 커피와 간식, 그리고 사람들이 남긴 이야기.', [
+        {txt:'먹다 남은 디저트 얻기', fn:()=>{ if(Math.random()<0.6){changeStat({energy:10,mood:8,addItem:'쿠키 조각'}); log('🍪 쿠키 조각을 얻었다!') } else {changeStat({mood:-2}); log('🥱 오늘은 운이 없다') } } },
+        {txt:'사람 구경하며 정보 수집', fn:()=>{ changeStat({mood:5}); log('🗣 새로운 일자리 정보를 조금 들었다.') } },
+        {txt:'사장님 발밑에서 애교 부리기', fn:()=>{ if(Math.random()<0.4){changeStat({money:12,mood:12}); log('❤️ 사장님이 간식을 주었다!')} else {changeStat({mood:0}); log('😼 사장님이 바빴다')} } }
+      ]); break;
+
+      case 'rooftop': showLocation('옥상', '도시 전경이 한눈에 들어오는 곳. 가끔 비밀 이벤트가 발생합니다.', [
+        {txt:'별 보기 (기분 회복)', fn:()=>{changeStat({mood:15,energy:5}); log('✨ 별을 보며 마음의 평화를 얻었다')}},
+        {txt:'비밀 NPC와 대화', fn:()=>{ if(Math.random()<0.35){changeStat({money:60,mood:30}); log('🗝 비밀 임무를 성공하고 보상을 받았다!')} else {changeStat({mood:-5}); log('👻 아무도 없었다...') } } },
+        {txt:'골목대장 도전 (리스크)', fn:()=>{ if(Math.random()<0.2){changeStat({money:100,mood:40}); log('💥 골목대장을 이겼다! 큰 보상')} else {changeStat({energy:-30,mood:-30}); log('💢 싸움에서 졌다 — 큰 손해') } } }
+      ]); break;
+
+      case 'alley': showLocation('뒷골목 벼룩시장', '희귀 아이템을 발견할 수 있는 곳.', [
+        {txt:'상자 뒤지기', fn:()=>{ if(Math.random()<0.5){changeStat({addItem:'헌 옷 조각',mood:6}); log('📦 헌 옷 조각을 찾았다') } else {changeStat({mood:-2}); log('🗑 텅 비어있다') } } },
+        {txt:'물건 교환 (아이템↔돈)', fn:()=>{ if(state.inventory.length>0){ const it = state.inventory[Math.floor(Math.random()*state.inventory.length)]; changeStat({money:15,removeItem:it}); log(`🔁 ${it}을(를) 팔아 15₩을 얻었다`) } else {changeStat({mood:-3}); log('🔒 팔 물건이 없다') } } },
+        {txt:'수상한 상인과 거래', fn:()=>{ if(Math.random()<0.3){changeStat({addItem:'신비한 토큰',mood:20}); log('🎴 신비한 토큰을 얻었다!')} else {changeStat({mood:-10}); log('⚠️ 거래가 사기였다') } } }
+      ]); break;
+    }
+  }
+
+  function showLocation(title, desc, actions){
+    locName.textContent = title;
+    locDesc.textContent = desc;
+    locActions.innerHTML = '';
+    actions.forEach((a,idx)=>{
+      const b = document.createElement('button'); b.className='mini'; b.textContent = a.txt;
+      b.addEventListener('click', ()=>{ a.fn(); });
+      locActions.appendChild(b);
+      if(idx%2) locActions.appendChild(document.createTextNode(' '));
+    });
+    log(`➡️ ${title}에 도착했다.`);
+  }
+
+  // Mini-game: performance (click rhythm)
+  function startPerformanceMini(){
+    minigamePanel.classList.remove('hidden');
+    miniContent.innerHTML = '';
+    const desc = document.createElement('div');
+    desc.innerHTML = '<div class="muted">🎤 사람들을 모으려면 버튼을 빠르게 클릭하세요! 제한시간 5초.</div>';
+    const btn = document.createElement('button'); btn.textContent='공연하기!'; btn.style.marginTop='8px';
+    const counter = document.createElement('div'); counter.style.marginTop='8px'; counter.textContent='클릭: 0';
+    miniContent.appendChild(desc); miniContent.appendChild(btn); miniContent.appendChild(counter);
+    let clicks=0, running=false, timer=null;
+    btn.addEventListener('click', ()=>{
+      if(!running){
+        running=true; clicks=0; counter.textContent='클릭: 0';
+        timer = setTimeout(()=>{ endPerformance(clicks); running=false; }, 5000);
+      }
+      if(running){ clicks++; counter.textContent='클릭: '+clicks; }
+    });
+    closeMini.onclick = ()=>{
+      clearTimeout(timer); minigamePanel.classList.add('hidden'); miniContent.innerHTML='';
+    };
+  }
+  function endPerformance(clicks){
+    minigamePanel.classList.add('hidden');
+    miniContent.innerHTML='';
+    if(clicks >= 18){
+      changeStat({money:40,mood:20,energy:-18}); log(`🎉 훌륭한 공연! 클릭 ${clicks}회 — 많은 사람이 모여 팁을 준다.`);
+    } else if(clicks >= 8){
+      changeStat({money:12,mood:8,energy:-10}); log(`🙂 괜찮은 공연. 클릭 ${clicks}회 — 소소한 팁.`);
+    } else {
+      changeStat({money:0,mood:-8,energy:-6}); log(`😞 공연이 어설펐다. 클릭 ${clicks}회 — 기분이 안 좋아진다.`);
+    }
+  }
+
+  // save/load/new day
+  saveBtn.addEventListener('click', ()=>{
+    localStorage.setItem('cat_game_save', JSON.stringify(state));
+    log('💾 게임을 저장했습니다.');
+  });
+  loadBtn.addEventListener('click', ()=>{
+    const s = localStorage.getItem('cat_game_save');
+    if(!s){ alert('저장된 게임이 없습니다.'); return; }
+    Object.assign(state, JSON.parse(s));
+    catNameInput.value = state.name;
+    document.querySelector(`input[name="style"][value="${state.theme}"]`).checked = true;
+    updateUI();
+    log('📂 저장된 게임을 불러왔습니다.');
+  });
+  newDayBtn.addEventListener('click', ()=>{
+    state.day += 1;
+    state.energy = clamp(state.energy + 30, 0, 100);
+    state.mood = clamp(state.mood + 10, 0, 100);
+    updateUI();
+    log(`🌅 새로운 날 (Day ${state.day}) — 에너지가 회복되었다.`);
+  });
+
+  // keyboard quick actions (optional)
+  document.addEventListener('keydown', (e)=>{
+    if(e.key === 'i'){ alert('인벤토리: ' + (state.inventory.join(', ') || '없음')); }
+  });
+
+  // small tutorial start
+  log('📝 힌트: 맵에서 장소를 클릭하고 버튼을 눌러 행동을 선택하세요. 에너지와 기분을 관리하세요.');
+
+})();
+</script>
+</body>
+</html>
